@@ -1,0 +1,561 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width">
+        <title>租房通</title>
+        <link rel="stylesheet" href="http://cache.amap.com/lbs/static/main1119.css" />
+        <link rel="stylesheet" href="http://cache.amap.com/lbs/static/jquery.range.css" />
+        <script src="http://cache.amap.com/lbs/static/jquery-1.9.1.js"></script>
+        <script src="http://cache.amap.com/lbs/static/es5.min.js"></script>
+        <script src="http://webapi.amap.com/maps?v=1.4.15&key=22d3816e107f199992666d6412fa0691&plugin=AMap.ArrivalRange,AMap.Scale,AMap.Geocoder,AMap.GeoJSON,AMap.Transfer,AMap.Autocomplete,AMap.MarkerClusterer"></script>
+        <script src="http://cache.amap.com/lbs/static/jquery.range.js"></script>
+		 <script src="jquery-1.12.1.min.js"></script>
+        <style>
+        .control-panel {
+            position: absolute;
+            top: 30px;
+            right: 20px;
+        }
+
+        .control-entry {
+            width: 280px;
+            background-color: rgba(119, 136, 153, 0.8);
+            font-family: fantasy, sans-serif;
+            text-align: left;
+            color: white;
+            overflow: auto;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .control-input {
+            margin-left: 120px;
+        }
+
+        .control-input input[type="text"] {
+            width: 160px;
+        }
+
+        .control-panel label {
+            float: left;
+            width: 120px;
+        }
+
+        #transfer-panel {
+            position: absolute;
+            background-color: white;
+            max-height: 80%;
+            overflow-y: auto;
+            top: 30px;
+            left: 20px;
+            width: 250px;
+        }
+		 .custom-input-card{
+            width: 18rem;
+        }
+
+        .custom-input-card .btn:last-child{
+            margin-left: 1rem;
+        }
+
+        .content-window-card{
+            position: relative;
+            width: 15rem;
+            /* padding: 0.75rem 0 0 1.25rem; */
+            box-shadow: none;
+			font-size: 20px;
+            bottom: 0;
+            left: 0;
+        }
+
+        .content-window-card p{
+            height: 2rem;
+        }
+		select{
+			width: 157px;
+			height: 25px
+		}
+        </style>
+    </head>
+
+    <body>
+        <div id="container"></div>
+        <div class="control-panel">
+            <div class="control-entry">
+                <label>选择工作地点：</label>
+                <div class="control-input">
+                    <input id="work-location" type="text">
+                </div>
+            </div>
+            <div class="control-entry">
+                <label>选择通勤方式：</label>
+                <div class="control-input">
+                    <input type="radio" name="vehicle" value="SUBWAY,BUS" onClick="takeBus(this)" checked/> 公交+地铁
+                    <input type="radio" name="vehicle" value="SUBWAY" onClick="takeSubway(this)" /> 地铁
+                </div>
+            </div>
+			<div class="control-entry">
+			    <label>价格：</label>
+			    <div class="control-input">
+					<select id="price">
+					 <option value="0">全部</option>
+					 <option value="1">小于1500</option>
+					 <option value="2">1500~3000</option>
+					 <option value="3">大于3000</option>
+					</select>
+			     
+			    </div>
+			</div>
+			<div class="control-entry">
+			    <label>来源：</label>
+			    <div class="control-input">
+			      <select id="source">
+			      	<option value="0">全部</option>
+			       <option value="58">58</option>
+			       <option value="3">赶集</option>
+			       <option value="lj">链家</option>
+			      </select>
+			    </div>
+			</div>
+            <div class="control-entry">
+                <label>导入房源文件：</label>
+                <div class="control-input">
+                    <input type="file" name="file" onChange="importRentInfo(this)" />
+                </div>
+            </div>
+        </div>
+        <div id="transfer-panel"></div>
+        <script>
+		
+        var map = new AMap.Map("container", {
+            resizeEnable: true,
+            zoomEnable: true,
+            center: [116.397428, 39.90923],
+            zoom: 11
+        });
+		var scale = new AMap.Scale();
+		var region =[]
+		map.addControl(scale);
+
+		// 北京行政区域的数据
+		 $.ajax({
+			 type: "GET",
+			 url: "https://a.amap.com/jsapi_demos/static/geojson/beijing.json",
+			 // data: {username:$("#username").val(), content:$("#content").val()},
+			 dataType: "json",
+			 success: function(geoJSON){
+				  var geojson = new AMap.GeoJSON({
+				  	geoJSON: geoJSON,
+				  	// 还可以自定义getMarker和getPolyline
+				  	getPolygon: function(geojson, lnglats) {
+						
+				  	    // 创建纯文本标记
+				  	    var text = new AMap.Text({
+				  	        text:geojson.properties.name,
+				  	        anchor:'center', // 设置文本标记锚点
+				  	        // draggable:true,
+				  	        cursor:'pointer',
+				  	        angle:10,
+				  	        style:{//文字的样式
+				  	            'background-color':  '#F0E68C ',
+								'border-radius':"50%",
+								"width":"45px",
+								"height":"45px",
+				  	            'border-width': 0,				  	           
+				  	            'font-size': '11px',
+								'text-align': 'center',
+								'line-height': '45px'
+				  	        },
+				  	        position: geojson.properties.cp
+				  	    });
+				  	
+				  	    text.setMap(map);
+						region.push(text)
+						// 行政区的
+						var polygon = new AMap.Polygon({
+				  			path: lnglats,
+				  			fillOpacity: 0.5,// 面积越大透明度越高
+				  			strokeColor: 'white',
+							strokeOpacity: 0.4, //线透明度
+							strokeWeight: 3,    //线宽
+							fillColor: "#1791fc", //填充色
+				  		});
+						// polygon.on('mouseover', function(e){
+						// 	e.target.setOptions({
+						// 		fillOpacity:1,// 面积越大透明度越高
+						// 	})
+						// });
+						
+						// polygon.on('mouseout', function(e){
+						// 	e.target.setOptions({
+						// 		fillOpacity:0.5,// 面积越大透明度越高
+						// 	})
+						// });
+				  		return polygon
+				  	}
+				  });
+				  geojson.setMap(map);
+			}
+		 });
+		 
+		 
+		 map.on('zoomend', function(e){
+			 var zoom = map.getZoom()
+			 
+			 console.log("地图缩放",zoom)
+			 if(zoom>11){
+				  map.remove(region);
+				  console.log(region)
+			 }else{
+				 region.map(function(item,index){
+					 item.setMap(map);
+				 })
+			 }
+		 })
+	
+
+		var arrivalRange = new AMap.ArrivalRange();  //1小时内可达范围
+		var x, y, t, vehicle = "SUBWAY,BUS";
+		var workAddress, workMarker;
+		var rentMarkerArray = [];
+		var polygonArray = [];
+		var amapTransfer;
+
+		var infoWindow = new AMap.InfoWindow({
+			offset: new AMap.Pixel(0, -30)
+		});
+
+		var auto = new AMap.Autocomplete({
+			input: "work-location"
+		});
+		AMap.event.addListener(auto, "select", workLocationSelected);
+
+
+		function takeBus(radio) {
+			vehicle = radio.value;
+			loadWorkLocation()
+		}
+
+		function takeSubway(radio) {
+			vehicle = radio.value;
+			loadWorkLocation()
+		}
+        // 导入excel
+		function importRentInfo(fileInfo) {
+			var file = fileInfo.files[0].name;
+			loadRentLocationByFile(file);
+		}
+
+		function workLocationSelected(e) {
+			workAddress = e.poi.name;
+			loadWorkLocation();
+		}
+
+		//工作地标签
+		function loadWorkMarker(x, y, locationName) {
+			workMarker = new AMap.Marker({
+				map: map,
+				title: locationName,
+				icon: 'https://www.easyicon.net/api/resizeApi.php?id=535928&size=32',
+				position: [x, y]
+
+			});
+		}
+
+		//加载工作地范围
+		function loadWorkRange(x, y, t, color, v) {
+			arrivalRange.search([x, y], t, function(status, result) {
+				if (result.bounds) {
+					for (var i = 0; i < result.bounds.length; i++) {
+						var polygon = new AMap.Polygon({
+							map: map,
+							fillColor: color,
+							fillOpacity: "0.4",
+							strokeColor: color,
+							strokeOpacity: "0.8",
+							strokeWeight: 1
+						});
+						polygon.setPath(result.bounds[i]);
+						polygonArray.push(polygon);
+					}
+				}
+			}, {
+				policy: v
+			});
+		}
+
+		// var icon3 = new AMap.Icon({
+    	// 	size: new AMap.Size(40, 50),    // 图标尺寸
+    	// 	image: '//webapi.amap.com/theme/v1.3/images/newpc/way_btn2.png',  // Icon的图像
+    	// 	imageOffset: new AMap.Pixel(0, -60),  // 图像相对展示区域的偏移量，适于雪碧图等
+    	// 	imageSize: new AMap.Size(40, 50)   // 根据所设置的大小拉伸或压缩图片
+		// 	});
+
+		//加载房源
+		function addMarkerByAddress(address,source) {
+			var geocoder = new AMap.Geocoder({
+				city: "北京",
+				radius: 1000
+			});
+            //判断来源
+			var icon2 = '';
+            if (parseInt(source) == 58) {
+                icon2 = 'http://webapi.amap.com/theme/v1.3/markers/n/mark_r.png';
+            }
+            else if(parseInt(source) == 3)
+            {
+                icon2 = 'http://webapi.amap.com/theme/v1.3/markers/n/mark_b.png';
+			}
+			else
+			{
+				icon2 = 'https://www.easyicon.net/api/resizeApi.php?id=535928&size=32';
+			}
+
+			geocoder.getLocation(address, function(status, result) {
+				if (status === "complete" && result.info === 'OK') {
+					var geocode = result.geocodes[0];
+					console.log(source); 
+					rentMarker = new AMap.Marker({
+						map: map,
+						title: address,
+						icon: icon2 ,    //此处可以改变不同房源的颜色  //'http://webapi.amap.com/theme/v1.3/markers/n/mark_b.png'
+						position: [geocode.location.getLng(), geocode.location.getLat()]
+					});
+					rentMarkerArray.push(rentMarker);
+																						   //此处改变网址
+					if (parseInt(source) == 58) {
+						rentMarker.content = "<div>房源：<a target = '_blank' href='https://bj.58.com/pinpaigongyu/?key=" + address + "'>" + address + "</a><div>" ;
+					}
+					else if (parseInt(source) == 3) {
+						rentMarker.content = "<div>房源：<a target = '_blank' href='https://bj.ganji.com/chuzu/?key=" + address + "'>" + address + "</a><div>" ;
+					}
+					else 
+					{
+						rentMarker.content = "<div>房源：<a target = '_blank' href='https://bj.lianjia.com/zufang/rs" + address + "'>" + address + "</a><div>" ;
+					}					
+					rentMarker.on('click', function(e) {
+						infoWindow.setContent(e.target.content);
+						infoWindow.open(map, e.target.getPosition());
+						if (amapTransfer) amapTransfer.clear();
+						amapTransfer = new AMap.Transfer({
+							map: map,
+							policy: AMap.TransferPolicy.LEAST_TIME,
+							city: "北京市",
+							panel: 'transfer-panel'
+						});
+						amapTransfer.search([{
+							keyword: workAddress
+						}, {
+							keyword: address
+						}], function(status, result) {})
+					});
+				}
+			})
+		}
+
+		function delWorkLocation() {
+			if (polygonArray) map.remove(polygonArray);
+			if (workMarker) map.remove(workMarker);
+			polygonArray = [];
+		}
+
+		function delRentLocation() {
+			if (rentMarkerArray) map.remove(rentMarkerArray);
+			rentMarkerArray = [];
+		}
+
+		function loadWorkLocation() {
+			delWorkLocation();
+			var geocoder = new AMap.Geocoder({
+				city: "北京",
+				radius: 1000
+			});
+
+			geocoder.getLocation(workAddress, function(status, result) {
+				if (status === "complete" && result.info === 'OK') {
+					var geocode = result.geocodes[0];
+					x = geocode.location.getLng();
+					y = geocode.location.getLat();
+					loadWorkMarker(x, y);
+					loadWorkRange(x, y, 60, "#3f67a5", vehicle);
+					map.setZoomAndCenter(12, [x, y]);
+				}
+			})
+		}
+
+		// 聚合数据
+        var markers = []
+		var markers1 = []
+		var markers2 = []
+		var cluster =null;
+		var cluster1 =null;
+		var cluster2 =null;
+		// 默认图标
+		var icon = 'https://www.easyicon.net/api/resizeApi.php?id=535928&size=32';
+		// 创建弹窗
+		var infoWindow 
+		//新的加载方式，通过数据中的经纬信息
+		function loadRentLocationByFile(fileName) {
+			delRentLocation();
+			var rent_locations = [];  
+            var rent_source = [];
+			$.get(fileName, function(data) {
+				data = data.split("\n");
+			
+				data.forEach(function(item, index) {
+					// rent_locations[rent_locations.length] = item.split(",")[1];  //第一个元素为地址
+     				//rent_source[rent_source.length] = item.split(",")[4]; //第四个元素为来源
+					var homeMarkerData = {
+						title:item.split(",")[0],
+						locations:item.split(",")[1],
+						price:item.split(",")[2],
+						url:item.split(",")[3],
+						source:item.split(",")[4],
+						lon:item.split(",")[5],
+						lat:item.split(",")[6]
+					}
+					if(index>0&&index<data.length){
+					   if(parseFloat(item.split(",")[5])&&parseFloat(item.split(",")[6])){
+						   if (parseInt( item.split(",")[4]) == 58) {
+							   icon = 'http://webapi.amap.com/theme/v1.3/markers/n/mark_r.png';
+						   }else if (parseInt( item.split(",")[4]) == 3) {
+							    icon = 'http://webapi.amap.com/theme/v1.3/markers/n/mark_b.png';
+						   }
+						   var homeMarker = new AMap.Marker({
+							     // map: map,
+								title: item.split(",")[1],
+								icon:icon,
+								position: [item.split(",")[5], item.split(",")[6]],
+								content: '<div style="background-color: hsla(180, 100%, 50%, 0.7); height: 24px; width: 24px; border: 1px solid hsl(180, 100%, 40%); border-radius: 12px; box-shadow: hsl(180, 100%, 50%) 0px 0px 1px;"></div>',
+								offset: new AMap.Pixel(-15, -15),
+						   })
+						   homeMarker.data= homeMarkerData
+						   
+						   homeMarker.on('click', function(e) {
+							   var data = e.target.data
+							   openInfo(data)
+
+								// 使用路径规划的api
+							   if (amapTransfer) amapTransfer.clear();
+								amapTransfer = new AMap.Transfer({
+									map: map,
+									policy: AMap.TransferPolicy.LEAST_TIME,
+									city: "北京市",
+									panel: 'transfer-panel'
+								});
+								amapTransfer.search([{
+									keyword: workAddress
+								}, {
+									keyword: item.split(",")[1]
+								}], function(status, result) {})
+						   })
+						   console.log("价格",$("#price").val())
+						   var price = $("#price").val()
+						   if(price=="0"){
+							   console.log("价格",$("#price").val())
+							   addData(item.split(",")[4],homeMarker)
+						   }else if(price=="1"&&parseFloat(item.split(",")[2])<=1500){
+							   console.log("价格",parseFloat(item.split(",")[2]))
+							    addData(item.split(",")[4],homeMarker)
+						   }else if(price=="2"&&parseFloat(item.split(",")[2])>1500&&parseFloat(item.split(",")[2])<=3000){
+							   console.log("价格",parseFloat(item.split(",")[2]))
+							    addData(item.split(",")[4],homeMarker)
+						   }else if(price=="3"&&parseFloat(item.split(",")[2])>3000){
+							   console.log("价格",parseFloat(item.split(",")[2]))
+							    addData(item.split(",")[4],homeMarker)
+						   }
+						  
+					   }
+							
+					}
+				});
+				console.log(markers,markers2,markers1)
+				var source = $("#source").val()
+				console.log(source)
+				//根据来源聚合数据
+				if(source =="0"){
+					cluster =addCluster(markers,1)
+					cluster1 = addCluster(markers2,2)
+					cluster2 = addCluster(markers1,3)
+				}else if(source == "lj"){
+					cluster =addCluster(markers,1)
+				}else if(source == "58"){
+					cluster2 = addCluster(markers1,3)
+				}else if(source == "3"){
+					cluster1 = addCluster(markers2,2)
+				}
+				
+                // for (var i = 0; i < rent_locations.length; i++) {
+                //     addMarkerByAddress(rent_locations[i],rent_source[i]);//source来自此处
+                // }
+				// rent_locations.forEach(function(element, index) {
+				// 	addMarkerByAddress(element);
+				// });
+			});
+		}
+		
+		function addData(price,homeMarker){
+			if (parseInt( price) == 58) {
+				markers1.push(homeMarker)
+			}else if (parseInt( price) == 3) {
+				markers2.push(homeMarker)
+			}else{
+				markers.push(homeMarker)
+			}   
+		}
+		
+		// 显示聚合
+		function addCluster(markers,type) {
+			var url ="https://a.amap.com/jsapi_demos/static/images/green.png" 
+			if(type == 1){
+				url= "https://a.amap.com/jsapi_demos/static/images/blue.png"
+			}else if(type == 2){
+				url= "https://a.amap.com/jsapi_demos/static/images/orange.png"
+			}
+			var sts = [{
+				url: url,
+				size: new AMap.Size(32, 32),
+				offset: new AMap.Pixel(-16, -16)
+			}];
+			//聚合
+			var cluster = new AMap.MarkerClusterer(map, markers, {
+				styles: sts,
+				zooms:[13,15],
+				gridSize:20
+			});
+			
+			return cluster
+			
+		}
+		//在指定位置打开信息窗体
+		function openInfo(data) {
+			var sourcehtml = content = "<div>房源：<a target = '_blank' href='https://bj.lianjia.com/zufang/rs" + data.locations + "'>" + data.locations + "</ a><div>" ;
+			var source = "链家"
+				if (parseInt( data.source) == 58) {
+				sourcehtml = "<div>房源：<a target = '_blank' href='https://bj.58.com/pinpaigongyu/?key=" + data.locations + "'>" + data.locations + "</ a><div>" ;
+				source = "58"
+				}else if (parseInt( data.source) == 3) {
+				sourcehtml = "<div>房源：<a target = '_blank' href='https://bj.ganji.com/chuzu/?key=" + data.locations + "'>" + data.locations + "</ a><div>" ;
+				source = "赶集"
+				} else {
+
+				} 
+			//构建信息窗体中显示的内容
+			var info = [];
+			console.log(data)
+			info.push("<div class='input-card content-window-card'>"+data.locations+"</div> ");
+			info.push("<div style=\"padding:7px 0px 0px 0px;\">来源："+source);
+			info.push("<div style=\"padding:7px 0px 0px 0px;\">价格："+data.price);
+			info.push(sourcehtml);
+			info.push("<div class='input-item'>类型 :"+data.title+"</div></div></div>");
+
+			infoWindow = new AMap.InfoWindow({
+				content: info.join("")  //使用默认信息窗体框样式，显示信息内容
+			});
+			
+			infoWindow.open(map, [data.lon,data.lat]);
+			}
+        </script>
+    </body>
+</html>
