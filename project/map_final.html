@@ -320,7 +320,7 @@
 						map: map,
 						title: address,
 						icon: icon2 ,    //此处可以改变不同房源的颜色  //'http://webapi.amap.com/theme/v1.3/markers/n/mark_b.png'
-						position: [geocode.location.getLng(), geocode.location.getLat()]
+						position: [geocode.location.getLng(), geocode.location.getLat()]  //初版加载点
 					});
 					rentMarkerArray.push(rentMarker);
 																						   //此处改变网址
@@ -426,7 +426,7 @@
 							     // map: map,
 								title: item.split(",")[1],
 								icon:icon,
-								position: [item.split(",")[5], item.split(",")[6]],
+								position: [item.split(",")[5], item.split(",")[6]], //直接导入经纬度数据
 								content: '<div style="background-color: hsla(180, 100%, 50%, 0.7); height: 24px; width: 24px; border: 1px solid hsl(180, 100%, 40%); border-radius: 12px; box-shadow: hsl(180, 100%, 50%) 0px 0px 1px;"></div>',
 								offset: new AMap.Pixel(-15, -15),
 						   })
